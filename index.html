@@ -2,12 +2,12 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Ecuaciones con fracciones + bot parlante</title>
+<title>Ecuaciones (fracciones / x÷n) + bot parlante</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
   body{margin:0;font-family:Arial,Helvetica,sans-serif;display:flex;height:100vh}
   .panel{flex:1;padding:22px;overflow:auto}
-  h1{font-size:1.2rem;margin-top:0}
+  h1{font-size:1.2rem;margin:0}
   input,button{font-size:1rem;padding:6px 8px;margin:10px 0;width:100%}
   button{background:#1976d2;color:#fff;border:none;border-radius:4px;cursor:pointer}
   button:hover{background:#145ca3}
@@ -24,8 +24,8 @@
 <body>
 
 <div class="panel">
-  <h1>Ingresa tu ecuación (ahora admite fracciones)</h1>
-  <input type="text" id="ecuacion" value="-3/4x^2 + 5/6x - 7/8">
+  <h1>Escribe tu ecuación (hasta grado 2, con fracciones o x/ n)</h1>
+  <input type="text" id="ecuacion" placeholder="Ej.: -x/2 + 3/4x^2 - 5/6">
   <button onclick="resolver()">Resolver y graficar</button>
 
   <div id="resultados"></div>
@@ -41,13 +41,117 @@
 let chart;
 const chatBody = document.getElementById('chat');
 
+/* --- utilidades de chat & voz --- */
 function addMsg(sender, text){
   const div = document.createElement('div');
-  div.className = 'msg '+sender;
+  div.className = 'msg ' + sender;
   div.innerHTML = `<span>${text}</span>`;
   chatBody.appendChild(div);
   chatBody.scrollTop = chatBody.scrollHeight;
 }
 function speak(text){
-  if(!('speechSynthesis' in window)) return;
-  const u = new SpeechSynthesisUtterance(
+  if (!('speechSynthesis' in window)) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'es-ES';  speechSynthesis.cancel();  speechSynthesis.speak(u);
+}
+
+/* --- convierte string “coef” (entero, decimal o fracción) a número --- */
+function fracToDec(str){
+  if (str === '' || str === '+') return 1;
+  if (str === '-') return -1;
+  if (str.includes('/')){
+    const [n,d] = str.split('/').map(Number);
+    return n / d;
+  }
+  return parseFloat(str);
+}
+
+/* --- PRE-PROCESA la ecuación para admitir x/num o x^2/num --- */
+function normalizarXdivNumero(s){
+  /*   +x/3   -x/4     +x^2/5      -x^2/6   */
+  return s.replace(/([+\-])x(\^2)?\/(\d*\.?\d+)/g, (_,sign,pow,den) => {
+    const coef = (+sign + 0) === -1 ? -1/den : 1/den;         // ±1/den
+    return (coef>=0?'+':'') + coef + 'x' + (pow || '');
+  });
+}
+
+/* --- obtiene a, b, c --- */
+function parseEcuacion(raw){
+  let s = raw.toLowerCase().replace(/\s+/g,'');
+  if (!s) return null;
+  if (s[0] !== '+' && s[0] !== '-') s = '+' + s;              // fuerza signo inicial
+  s = normalizarXdivNumero(s);                                 // x/num → coef·x
+  const terminos = s.match(/[+\-][^+\-]+/g) || [];
+
+  let a=0,b=0,c=0;
+  terminos.forEach(t=>{
+    if (t.includes('x^2')){
+      const coef = t.replace('x^2','');
+      a += fracToDec(coef);
+    } else if (t.includes('x')){
+      const coef = t.replace('x','');
+      b += fracToDec(coef);
+    } else {
+      c += fracToDec(t);
+    }
+  });
+  return {a,b,c};
+}
+
+function resolver(){
+  const entrada = document.getElementById('ecuacion').value.trim();
+  addMsg('user', entrada || '(vacío)');
+
+  const coef = parseEcuacion(entrada);
+  if (!coef || (coef.a === 0 && coef.b === 0)){
+    alert('La ecuación debe contener x o x².');
+    return;
+  }
+  const {a,b,c} = coef;
+
+  /* --- resolución --- */
+  let sol='', rango='', dominio='Dominio: (-∞, ∞)';
+  if (a === 0){                       // lineal
+    const x = -c / b;
+    sol   = `Solución: x = ${x.toFixed(4)}`;
+    rango = 'Rango: (-∞, ∞)';
+  } else {                            // cuadrática
+    const D = b*b - 4*a*c;
+    if (D > 0){
+      const x1 = (-b + Math.sqrt(D)) / (2*a);
+      const x2 = (-b - Math.sqrt(D)) / (2*a);
+      sol = `Dos soluciones reales: x₁ = ${x1.toFixed(4)}, x₂ = ${x2.toFixed(4)}`;
+    } else if (D === 0){
+      const x = -b / (2*a);
+      sol = `Una solución real doble: x = ${x.toFixed(4)}`;
+    } else {
+      const re = (-b / (2*a)).toFixed(4);
+      const im = (Math.sqrt(-D) / (2*a)).toFixed(4);
+      sol = `Soluciones complejas: x = ${re} ± ${im}i`;
+    }
+    const yv = -D / (4*a);
+    rango = a > 0 ? `Rango: [${yv.toFixed(4)}, ∞)` : `Rango: (-∞, ${yv.toFixed(4)}]`;
+  }
+
+  document.getElementById('resultados').innerHTML =
+    `<strong>${sol}</strong><br>${dominio}<br>${rango}`;
+
+  const botText = `${sol}. ${dominio}. ${rango}.`;
+  addMsg('bot', botText);  speak(botText);
+
+  /* --- gráfico --- */
+  const xs = [], ys = [];
+  for (let x = -20; x <= 20; x += 0.2){
+    ys.push(a*x*x + b*x + c);
+    xs.push(x.toFixed(2));
+  }
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('grafico'),{
+    type:'line',
+    data:{labels:xs,datasets:[{label:'f(x)',data:ys,fill:false,tension:0.12,borderWidth:2}]},
+    options:{scales:{x:{title:{display:true,text:'x'}},y:{title:{display:true,text:'f(x)'}}}}
+  });
+}
+</script>
+</body>
+</html>
