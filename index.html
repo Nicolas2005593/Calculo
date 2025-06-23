@@ -2,31 +2,93 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Resuelve tu ecuación en [-20, 20] con bot parlante</title>
+  <title>Dominio, Rango y Asíntotas en [-20, 20]</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.5.0/math.min.js"></script>
   <style>
-    body{margin:0;font-family:sans-serif;display:flex;height:100vh}
-    .panel{flex:1;padding:20px;background:#f5f5f5}
-    h1{font-size:1.3rem;margin:0 0 10px}
-    input,button{width:100%;font-size:1rem;padding:8px;margin-bottom:12px}
-    button{background:#1976d2;color:#fff;border:none;border-radius:4px;cursor:pointer}
-    button:hover{background:#145ca3}
-    #resultados{background:#fff;padding:12px;border:1px solid #ddd;border-radius:6px;margin-bottom:20px}
-    canvas{width:100%;height:300px;background:#fff;border:1px solid #ccc;border-radius:6px}
-    .chat-container{flex:0 0 300px;background:#fff;border-left:2px solid #ddd;display:flex;flex-direction:column}
-    .chat-header{background:#1976d2;color:#fff;text-align:center;padding:10px;font-weight:bold}
-    .chat-body{flex:1;overflow:auto;padding:10px}
-    .msg{margin-bottom:12px;line-height:1.4}
-    .user span{background:#cce5ff;padding:8px 12px;border-radius:10px 10px 0 10px;display:inline-block;float:right}
-    .bot span{background:#eee;padding:8px 12px;border-radius:10px 10px 10px 0;display:inline-block}
+    body {margin:0;font-family:sans-serif;display:flex;height:100vh}
+    .panel {
+      flex:1;
+      padding:20px;
+      background:#f5f5f5;
+    }
+    h1 {
+      font-size:1.3rem;
+      margin-bottom:10px;
+    }
+    input, button {
+      width:100%;
+      font-size:1rem;
+      padding:8px;
+      margin-bottom:12px;
+    }
+    button {
+      background:#1976d2;
+      color:#fff;
+      border:none;
+      border-radius:4px;
+      cursor:pointer;
+    }
+    button:hover {
+      background:#145ca3;
+    }
+    #resultados {
+      background:#fff;
+      padding:12px;
+      border-radius:6px;
+      border:1px solid #ddd;
+      margin-bottom:20px;
+    }
+    canvas {
+      width:100%;
+      height:300px;
+      background:#fff;
+      border:1px solid #ccc;
+      border-radius:6px;
+    }
+    .chat-container {
+      flex:0 0 300px;
+      background:#fff;
+      border-left:2px solid #ddd;
+      display:flex;
+      flex-direction:column;
+    }
+    .chat-header {
+      background:#1976d2;
+      color:#fff;
+      text-align:center;
+      padding:10px;
+      font-weight:bold;
+    }
+    .chat-body {
+      flex:1;
+      overflow:auto;
+      padding:10px;
+    }
+    .msg {
+      margin-bottom:12px;
+      line-height:1.4;
+    }
+    .user span {
+      background:#cce5ff;
+      padding:8px 12px;
+      border-radius:10px 10px 0 10px;
+      display:inline-block;
+      float:right;
+    }
+    .bot span {
+      background:#eee;
+      padding:8px 12px;
+      border-radius:10px 10px 10px 0;
+      display:inline-block;
+    }
   </style>
 </head>
 <body>
 
 <div class="panel">
-  <h1>✏️ Escribe tu función f(x): (análisis solo en -20 ≤ x ≤ 20)</h1>
-  <input id="funcion" placeholder="Ej. x^2 + 3x - 4 o 1/(x-2)">
+  <h1>✏️ Ingresa f(x) (solo se analizará entre -20 y 20)</h1>
+  <input id="funcion" placeholder="Ej: x^2 - 4, 1/(x-2), sqrt(x)">
   <button onclick="resolver()">Resolver y graficar</button>
   <div id="resultados"></div>
   <canvas id="grafico"></canvas>
@@ -40,96 +102,128 @@
 <script>
 let chart;
 const chat = document.getElementById('chat');
-const X_MIN = -20, X_MAX = 20;       // ­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­– límites de intervalo
 
-/* utilidades chat & voz */
-function addMsg(sender,text){
-  const div=document.createElement('div');
-  div.className='msg '+sender;
-  div.innerHTML=`<span>${text}</span>`;
+function addMsg(sender, text){
+  const div = document.createElement('div');
+  div.className = 'msg ' + sender;
+  div.innerHTML = `<span>${text}</span>`;
   chat.appendChild(div);
-  chat.scrollTop=chat.scrollHeight;
+  chat.scrollTop = chat.scrollHeight;
 }
+
 function speak(text){
-  const u=new SpeechSynthesisUtterance(text);
-  u.lang='es-ES'; speechSynthesis.cancel(); speechSynthesis.speak(u);
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'es-ES';
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utter);
 }
 
-/* cálculo dentro de [-20,20] */
-function muestreo(f,step=0.2){
-  const xs=[],ys=[];
-  for(let x=X_MIN;x<=X_MAX;x+=step){
-    try{ const y=f.evaluate({x}); xs.push(+x.toFixed(2)); ys.push(y);}catch{xs.push(+x.toFixed(2)); ys.push(null);}
-  }
-  return {xs,ys};
-}
-function dominioYRango(f){
-  const dom=[],vals=[];
-  for(let x=X_MIN;x<=X_MAX;x+=0.2){
-    try{
-      const y=f.evaluate({x});
-      if(Number.isFinite(y)){ dom.push(x); vals.push(y);}
-    }catch(e){}
-  }
-  return {
-    dominio:dom, 
-    rango:[Math.min(...vals),Math.max(...vals)]
-  };
-}
-function asintotasVerticales(f){
-  const av=[];
-  for(let x=X_MIN;x<=X_MAX;x+=0.1){
-    let yL,yR;
-    try{yL=f.evaluate({x:x-0.01});}catch{}
-    try{yR=f.evaluate({x:x+0.01});}catch{}
-    if(yL!==undefined&&yR!==undefined&&Math.abs(yL-yR)>50) av.push(+x.toFixed(2));
-  }
-  return [...new Set(av)];
-}
-function asintotaHorizontal(f){
-  try{
-    const yPos=f.evaluate({x:1e6});
-    const yNeg=f.evaluate({x:-1e6});
-    if(Math.abs(yPos-yNeg)<1) return yPos.toFixed(2);
-  }catch{}
-  return null;
-}
+// Intervalo de análisis
+const X_MIN = -20;
+const X_MAX = 20;
 
-/* función principal */
 function resolver(){
-  const expr=document.getElementById('funcion').value.trim();
-  if(!expr){alert('Escribe una función.');return;}
-  addMsg('user',expr);
+  const expr = document.getElementById('funcion').value.trim();
+  if (!expr) {
+    alert("Escribe una función válida.");
+    return;
+  }
 
+  addMsg('user', expr);
   let f;
-  try{f=math.compile(expr);}catch{alert('Función inválida.');return;}
+  try {
+    f = math.compile(expr);
+  } catch {
+    alert("La función no se pudo interpretar.");
+    return;
+  }
 
-  const {dominio,rango}=dominioYRango(f);
-  const av=asintotasVerticales(f);
-  const ah=asintotaHorizontal(f);
+  // Calcular dominio y rango aproximado
+  const dominio = [];
+  const valores = [];
+  for (let x = X_MIN; x <= X_MAX; x += 0.2) {
+    try {
+      const y = f.evaluate({ x });
+      if (typeof y === 'number' && isFinite(y)) {
+        dominio.push(x);
+        valores.push(y);
+      }
+    } catch {}
+  }
 
-  const textoHTML=`
-    <strong>📌 Dominio en [-20,20]:</strong><br>
-    ${dominio.length?`${dominio[0].toFixed(2)} ≤ x ≤ ${dominio[dominio.length-1].toFixed(2)} (con posibles huecos en asíntotas)`:'No hay puntos finitos'}<br>
-    <strong>📌 Rango aprox. en [-20,20]:</strong><br>
-    y ≈ [${rango[0].toFixed(2)}, ${rango[1].toFixed(2)}]<br>
-    <strong>📌 Asíntotas verticales en [-20,20]:</strong> ${av.length?av.join(', '):'ninguna'}<br>
-    <strong>📌 Asíntota horizontal:</strong> ${ah!==null?'y = '+ah:'ninguna'}
+  const rangoMin = Math.min(...valores);
+  const rangoMax = Math.max(...valores);
+
+  // Buscar asíntotas verticales en [-20, 20]
+  const asintotasV = [];
+  for (let x = X_MIN; x <= X_MAX; x += 0.1) {
+    let y1, y2;
+    try { y1 = f.evaluate({ x: x - 0.01 }); } catch {}
+    try { y2 = f.evaluate({ x: x + 0.01 }); } catch {}
+    if (y1 !== undefined && y2 !== undefined && Math.abs(y1 - y2) > 50) {
+      asintotasV.push(Number(x.toFixed(2)));
+    }
+  }
+
+  // Asíntota horizontal
+  let asintotaH = null;
+  try {
+    const yInf = f.evaluate({ x: 1e6 });
+    const yNegInf = f.evaluate({ x: -1e6 });
+    if (Math.abs(yInf - yNegInf) < 1) {
+      asintotaH = yInf.toFixed(2);
+    }
+  } catch {}
+
+  // Mostrar resultados
+  const resHTML = `
+    <strong>📌 Dominio (en [-20, 20]):</strong><br>
+    ${dominio.length ? `De x = ${X_MIN} hasta x = ${X_MAX} (con huecos en asíntotas)` : 'No definido'}<br>
+    <strong>📌 Rango aprox.:</strong> y ∈ [${rangoMin.toFixed(2)}, ${rangoMax.toFixed(2)}]<br>
+    <strong>📌 Asíntotas verticales (en [-20, 20]):</strong> ${asintotasV.length ? asintotasV.join(', ') : 'ninguna'}<br>
+    <strong>📌 Asíntota horizontal:</strong> ${asintotaH !== null ? 'y = ' + asintotaH : 'ninguna'}
   `;
-  document.getElementById('resultados').innerHTML=textoHTML;
+  document.getElementById('resultados').innerHTML = resHTML;
 
-  const botTxt=`Dominio analizado entre −20 y 20. Rango aproximado de ${rango[0].toFixed(2)} a ${rango[1].toFixed(2)}. `+
-               `Asíntotas verticales: ${av.length?av.join(', '):'ninguna'}. `+
-               `Asíntota horizontal: ${ah!==null?'y = '+ah:'ninguna'}.`;
-  addMsg('bot',botTxt); speak(botTxt);
+  // Bot habla
+  const botText = `Dominio entre menos 20 y 20. Rango entre ${rangoMin.toFixed(2)} y ${rangoMax.toFixed(2)}. ` +
+                  `Asíntotas verticales: ${asintotasV.length ? asintotasV.join(', ') : 'ninguna'}. ` +
+                  `Asíntota horizontal: ${asintotaH ? 'y = ' + asintotaH : 'ninguna'}.`;
+  addMsg('bot', botText);
+  speak(botText);
 
-  /* gráfico */
-  const {xs,ys}=muestreo(f);
-  if(chart)chart.destroy();
-  chart=new Chart(document.getElementById('grafico'),{
-    type:'line',
-    data:{labels:xs,datasets:[{label:`f(x) = ${expr}`,data:ys,fill:false,borderWidth:2,spanGaps:false}]},
-    options:{scales:{x:{title:{display:true,text:'x'}},y:{title:{display:true,text:'f(x)'}}}}
+  // Graficar
+  const xs = [], ys = [];
+  for (let x = X_MIN; x <= X_MAX; x += 0.2) {
+    try {
+      const y = f.evaluate({ x });
+      xs.push(x.toFixed(2));
+      ys.push(y);
+    } catch {
+      xs.push(x.toFixed(2));
+      ys.push(null);
+    }
+  }
+
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('grafico'), {
+    type: 'line',
+    data: {
+      labels: xs,
+      datasets: [{
+        label: `f(x) = ${expr}`,
+        data: ys,
+        fill: false,
+        borderWidth: 2,
+        spanGaps: false
+      }]
+    },
+    options: {
+      scales: {
+        x: { title: { display: true, text: 'x' }},
+        y: { title: { display: true, text: 'f(x)' }}
+      }
+    }
   });
 }
 </script>
