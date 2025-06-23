@@ -2,144 +2,237 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Solucionador y graficador de ecuaciones</title>
+  <title>Solucionador + Bot parlante</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body{font-family:Arial,Helvetica,sans-serif;margin:20px;background:#fafafa}
-    h1{font-size:1.4rem;margin-bottom:10px}
-    label{display:block;margin-top:8px}
-    input,select,button{padding:6px;font-size:1rem;margin-top:4px}
-    #resultados{margin-top:15px;background:#fff;padding:12px;border-radius:6px;box-shadow:0 0 5px #ccc}
-    canvas{max-width:100%;background:#fff;border:1px solid #ddd;border-radius:6px;margin-top:20px}
+    *{box-sizing:border-box}
+    body{
+      font-family:Arial,Helvetica,sans-serif;
+      margin:0;
+      padding:0;
+      background:#f5f7fa;
+      display:flex;
+      min-height:100vh;
+    }
+    /* Panel principal */
+    .panel{
+      flex:1 1 70%;
+      padding:24px;
+    }
+    h1{margin-top:0;font-size:1.4rem}
+    label{display:block;margin-top:10px}
+    input,select,button{
+      padding:6px 10px;
+      font-size:1rem;
+      margin-top:4px
+    }
+    button{
+      cursor:pointer;
+      border:none;
+      background:#1976D2;
+      color:#fff;
+      border-radius:4px
+    }
+    button:hover{background:#145ca3}
+    #resultados{
+      margin-top:16px;
+      background:#fff;
+      padding:12px;
+      border-radius:6px;
+      box-shadow:0 1px 4px rgba(0,0,0,.1)
+    }
+    canvas{width:100%;max-height:380px;margin-top:20px;background:#fff;border:1px solid #ddd;border-radius:6px}
+
+    /* Chat bot */
+    .chat-container{
+      flex:1 1 30%;
+      border-left:2px solid #e0e0e0;
+      display:flex;
+      flex-direction:column;
+      background:#ffffff;
+    }
+    .chat-header{
+      background:#1976D2;
+      color:#fff;
+      padding:12px;
+      text-align:center;
+      font-weight:bold;
+    }
+    .chat-body{
+      flex:1;
+      padding:12px;
+      overflow-y:auto;
+    }
+    .msg{
+      margin-bottom:12px;
+      line-height:1.4;
+    }
+    .user{
+      text-align:right;
+    }
+    .user span{
+      background:#e8f0fe;
+      padding:8px 12px;
+      border-radius:12px 12px 0 12px;
+      display:inline-block;
+    }
+    .bot span{
+      background:#f1f3f4;
+      padding:8px 12px;
+      border-radius:12px 12px 12px 0;
+      display:inline-block;
+    }
   </style>
 </head>
 <body>
-  <h1>Solucionador de ecuaciones lineales y cuadráticas</h1>
 
-  <!-- Selección de tipo -->
-  <label>Tipo de ecuación:
-    <select id="tipo">
-      <option value="lineal">Lineal (ax + b = 0)</option>
-      <option value="cuadratica">Cuadrática (ax² + bx + c = 0)</option>
-    </select>
-  </label>
+  <!-- Panel principal -->
+  <div class="panel">
+    <h1>Solucionador de ecuaciones con bot parlante</h1>
 
-  <!-- Coeficientes -->
-  <label>a: <input type="number" id="a" value="1" step="any"></label>
-  <label>b: <input type="number" id="b" value="0" step="any"></label>
-  <label id="cLabel" style="display:none;">c: <input type="number" id="c" value="0" step="any"></label>
+    <label>Tipo de ecuación:
+      <select id="tipo">
+        <option value="lineal">Lineal (ax + b = 0)</option>
+        <option value="cuadratica">Cuadrática (ax² + bx + c = 0)</option>
+      </select>
+    </label>
 
-  <button onclick="resolver()">Resolver y graficar</button>
+    <label>a: <input type="number" id="a" value="1" step="any"></label>
+    <label>b: <input type="number" id="b" value="0" step="any"></label>
+    <label id="cLabel" style="display:none;">c: <input type="number" id="c" value="0" step="any"></label>
 
-  <!-- Resultados -->
-  <div id="resultados"></div>
+    <button onclick="resolver()">Resolver y graficar</button>
 
-  <!-- Canvas para gráfico -->
-  <canvas id="grafico"></canvas>
+    <div id="resultados"></div>
+    <canvas id="grafico"></canvas>
+  </div>
 
-  <script>
-    const tipoSelect = document.getElementById('tipo');
-    const cLabel = document.getElementById('cLabel');
-    let chart;          // instancia de Chart.js
+  <!-- Chat bot -->
+  <div class="chat-container">
+    <div class="chat-header">🗣️ Bot Matemático</div>
+    <div id="chat" class="chat-body">
+      <!-- Mensajes dinámicos -->
+    </div>
+  </div>
 
-    // Mostrar/ocultar coeficiente c según el tipo
-    tipoSelect.addEventListener('change', () => {
-      cLabel.style.display = tipoSelect.value === 'cuadratica' ? 'block' : 'none';
-    });
+<script>
+  const tipoSelect   = document.getElementById('tipo');
+  const cLabel       = document.getElementById('cLabel');
+  const chatBody     = document.getElementById('chat');
+  const speechSynth  = window.speechSynthesis;
+  let chart; // gráfico Chart.js
 
-    function resolver() {
-      const a = parseFloat(document.getElementById('a').value);
-      const b = parseFloat(document.getElementById('b').value);
-      const tipo = tipoSelect.value;
-      const resultados = document.getElementById('resultados');
-      let c = 0, soluciones = '', rangoString = '';
+  // Mostrar/ocultar coeficiente c
+  tipoSelect.addEventListener('change', () => {
+    cLabel.style.display = tipoSelect.value === 'cuadratica' ? 'block' : 'none';
+  });
 
-      // Valida ‘a’ ≠ 0 para ambas ecuaciones
-      if (a === 0) {
-        alert('El coeficiente a no puede ser 0.');
-        return;
-      }
+  // Añade un mensaje al chat
+  function addMessage(sender, text){
+    const div   = document.createElement('div');
+    div.className = `msg ${sender}`;
+    div.innerHTML = `<span>${text}</span>`;
+    chatBody.appendChild(div);
+    chatBody.scrollTop = chatBody.scrollHeight; // auto-scroll
+  }
 
-      // Lineal
-      if (tipo === 'lineal') {
-        const x = -b / a;
-        soluciones = `Solución única: x = ${x.toFixed(4)}`;
-        rangoString = 'Rango: (-∞, ∞)';
-      }
-      // Cuadrática
-      else {
-        c = parseFloat(document.getElementById('c').value);
-        const discriminante = b * b - 4 * a * c;
+  // Función para hacer hablar al bot
+  function speak(text){
+    if(!'speechSynthesis' in window) return; // por si no soporta
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'es-ES';
+    utter.rate = 1;
+    speechSynth.cancel(); // corta cualquier voz anterior
+    speechSynth.speak(utter);
+  }
 
-        if (discriminante > 0) {
-          const x1 = (-b + Math.sqrt(discriminante)) / (2 * a);
-          const x2 = (-b - Math.sqrt(discriminante)) / (2 * a);
-          soluciones = `Dos soluciones reales: x₁ = ${x1.toFixed(4)}, x₂ = ${x2.toFixed(4)}`;
-        } else if (discriminante === 0) {
-          const x = -b / (2 * a);
-          soluciones = `Una solución real doble: x = ${x.toFixed(4)}`;
-        } else {
-          const real = (-b / (2 * a)).toFixed(4);
-          const imag = (Math.sqrt(-discriminante) / (2 * a)).toFixed(4);
-          soluciones = `Soluciones complejas: x = ${real} ± ${imag}i`;
-        }
+  function resolver(){
+    const a = parseFloat(document.getElementById('a').value);
+    const b = parseFloat(document.getElementById('b').value);
+    const tipo = tipoSelect.value;
+    let c = 0;
 
-        // Rango (para todo ℝ)
-        const yVertex = (-discriminante) / (4 * a);
-        rangoString = a > 0
-          ? `Rango: [${yVertex.toFixed(4)}, ∞)`
-          : `Rango: (-∞, ${yVertex.toFixed(4)}]`;
-      }
-
-      // Dominios para polinomios: todo ℝ
-      const dominioString = 'Dominio: (-∞, ∞)';
-
-      // Mostrar resultados
-      resultados.innerHTML = `
-        <strong>${soluciones}</strong><br>
-        ${dominioString}<br>
-        ${rangoString}
-      `;
-
-      // -------------------------------------------------
-      // Generar datos para el gráfico en [-20, 20]
-      const xs = [];
-      const ys = [];
-      for (let x = -20; x <= 20; x += 0.2) {
-        const y = tipo === 'lineal'
-          ? a * x + b
-          : a * x * x + b * x + c;
-        xs.push(x.toFixed(2));
-        ys.push(y);
-      }
-
-      // Si ya había un gráfico, destruirlo antes de crear uno nuevo
-      if (chart) chart.destroy();
-
-      chart = new Chart(document.getElementById('grafico'), {
-        type: 'line',
-        data: {
-          labels: xs,
-          datasets: [{
-            label: tipo === 'lineal' ? 'f(x) = ax + b' : 'f(x) = ax² + bx + c',
-            data: ys,
-            fill: false,
-            tension: 0.1
-          }]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            x: { title: { display: true, text: 'x' } },
-            y: { title: { display: true, text: 'f(x)' } }
-          }
-        }
-      });
+    // Validación
+    if(a === 0){
+      alert('El coeficiente a no puede ser 0.');
+      return;
     }
 
-    // Ejecuta una primera gráfica por defecto
-    resolver();
-  </script>
+    // Mensaje del usuario al chat
+    addMessage('user', `Resolver ${tipo === 'lineal' ? 'ax + b = 0' : 'ax² + bx + c = 0'} con a=${a}, b=${b}${tipo==='cuadratica'?`, c=${document.getElementById('c').value}`:''}`);
+
+    // Cálculos
+    let soluciones = '', rangoString = '', dominioString = 'Dominio: (-∞, ∞)';
+    if(tipo === 'lineal'){
+      const x = -b / a;
+      soluciones = `Solución única: x = ${x.toFixed(4)}`;
+      rangoString = 'Rango: (-∞, ∞)';
+    }else{
+      c = parseFloat(document.getElementById('c').value);
+      const D = b*b - 4*a*c;
+      if(D > 0){
+        const x1 = (-b + Math.sqrt(D)) / (2*a);
+        const x2 = (-b - Math.sqrt(D)) / (2*a);
+        soluciones = `Dos soluciones reales: x₁ = ${x1.toFixed(4)}, x₂ = ${x2.toFixed(4)}`;
+      }else if(D === 0){
+        const x = -b/(2*a);
+        soluciones = `Una solución real doble: x = ${x.toFixed(4)}`;
+      }else{
+        const real = (-b/(2*a)).toFixed(4);
+        const imag = (Math.sqrt(-D)/(2*a)).toFixed(4);
+        soluciones = `Soluciones complejas: x = ${real} ± ${imag}i`;
+      }
+      const yVertex = -D/(4*a);
+      rangoString = a>0 ? `Rango: [${yVertex.toFixed(4)}, ∞)` : `Rango: (-∞, ${yVertex.toFixed(4)}]`;
+    }
+
+    // Mostrar texto en resultados
+    document.getElementById('resultados').innerHTML = `
+      <strong>${soluciones}</strong><br>
+      ${dominioString}<br>
+      ${rangoString}
+    `;
+
+    // Graficar
+    generarGrafico(a,b,c,tipo);
+
+    // Mensaje del bot
+    const botText = `${soluciones}. ${dominioString}. ${rangoString}.`;
+    addMessage('bot', botText);
+    speak(botText); // lo dice en voz alta
+  }
+
+  function generarGrafico(a,b,c,tipo){
+    const xs=[], ys=[];
+    for(let x=-20;x<=20;x+=0.2){
+      const y = (tipo==='lineal') ? a*x + b : a*x*x + b*x + c;
+      xs.push(x.toFixed(2));
+      ys.push(y);
+    }
+    if(chart) chart.destroy();
+    chart = new Chart(document.getElementById('grafico'),{
+      type:'line',
+      data:{
+        labels:xs,
+        datasets:[{
+          label: tipo==='lineal'?'f(x)=ax+b':'f(x)=ax²+bx+c',
+          data:ys,
+          fill:false,
+          tension:0.15
+        }]
+      },
+      options:{
+        responsive:true,
+        scales:{
+          x:{title:{display:true,text:'x'}},
+          y:{title:{display:true,text:'f(x)'}}
+        }
+      }
+    });
+  }
+
+  // Primera ejecución por defecto
+  resolver();
+</script>
 </body>
 </html>
-
