@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Solucionador y graficador de ecuaciones</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;margin:20px;background:#fafafa}
+    h1{font-size:1.4rem;margin-bottom:10px}
+    label{display:block;margin-top:8px}
+    input,select,button{padding:6px;font-size:1rem;margin-top:4px}
+    #resultados{margin-top:15px;background:#fff;padding:12px;border-radius:6px;box-shadow:0 0 5px #ccc}
+    canvas{max-width:100%;background:#fff;border:1px solid #ddd;border-radius:6px;margin-top:20px}
+  </style>
+</head>
+<body>
+  <h1>Solucionador de ecuaciones lineales y cuadráticas</h1>
+
+  <!-- Selección de tipo -->
+  <label>Tipo de ecuación:
+    <select id="tipo">
+      <option value="lineal">Lineal (ax + b = 0)</option>
+      <option value="cuadratica">Cuadrática (ax² + bx + c = 0)</option>
+    </select>
+  </label>
+
+  <!-- Coeficientes -->
+  <label>a: <input type="number" id="a" value="1" step="any"></label>
+  <label>b: <input type="number" id="b" value="0" step="any"></label>
+  <label id="cLabel" style="display:none;">c: <input type="number" id="c" value="0" step="any"></label>
+
+  <button onclick="resolver()">Resolver y graficar</button>
+
+  <!-- Resultados -->
+  <div id="resultados"></div>
+
+  <!-- Canvas para gráfico -->
+  <canvas id="grafico"></canvas>
+
+  <script>
+    const tipoSelect = document.getElementById('tipo');
+    const cLabel = document.getElementById('cLabel');
+    let chart;          // instancia de Chart.js
+
+    // Mostrar/ocultar coeficiente c según el tipo
+    tipoSelect.addEventListener('change', () => {
+      cLabel.style.display = tipoSelect.value === 'cuadratica' ? 'block' : 'none';
+    });
+
+    function resolver() {
+      const a = parseFloat(document.getElementById('a').value);
+      const b = parseFloat(document.getElementById('b').value);
+      const tipo = tipoSelect.value;
+      const resultados = document.getElementById('resultados');
+      let c = 0, soluciones = '', rangoString = '';
+
+      // Valida ‘a’ ≠ 0 para ambas ecuaciones
+      if (a === 0) {
+        alert('El coeficiente a no puede ser 0.');
+        return;
+      }
+
+      // Lineal
+      if (tipo === 'lineal') {
+        const x = -b / a;
+        soluciones = `Solución única: x = ${x.toFixed(4)}`;
+        rangoString = 'Rango: (-∞, ∞)';
+      }
+      // Cuadrática
+      else {
+        c = parseFloat(document.getElementById('c').value);
+        const discriminante = b * b - 4 * a * c;
+
+        if (discriminante > 0) {
+          const x1 = (-b + Math.sqrt(discriminante)) / (2 * a);
+          const x2 = (-b - Math.sqrt(discriminante)) / (2 * a);
+          soluciones = `Dos soluciones reales: x₁ = ${x1.toFixed(4)}, x₂ = ${x2.toFixed(4)}`;
+        } else if (discriminante === 0) {
+          const x = -b / (2 * a);
+          soluciones = `Una solución real doble: x = ${x.toFixed(4)}`;
+        } else {
+          const real = (-b / (2 * a)).toFixed(4);
+          const imag = (Math.sqrt(-discriminante) / (2 * a)).toFixed(4);
+          soluciones = `Soluciones complejas: x = ${real} ± ${imag}i`;
+        }
+
+        // Rango (para todo ℝ)
+        const yVertex = (-discriminante) / (4 * a);
+        rangoString = a > 0
+          ? `Rango: [${yVertex.toFixed(4)}, ∞)`
+          : `Rango: (-∞, ${yVertex.toFixed(4)}]`;
+      }
+
+      // Dominios para polinomios: todo ℝ
+      const dominioString = 'Dominio: (-∞, ∞)';
+
+      // Mostrar resultados
+      resultados.innerHTML = `
+        <strong>${soluciones}</strong><br>
+        ${dominioString}<br>
+        ${rangoString}
+      `;
+
+      // -------------------------------------------------
+      // Generar datos para el gráfico en [-20, 20]
+      const xs = [];
+      const ys = [];
+      for (let x = -20; x <= 20; x += 0.2) {
+        const y = tipo === 'lineal'
+          ? a * x + b
+          : a * x * x + b * x + c;
+        xs.push(x.toFixed(2));
+        ys.push(y);
+      }
+
+      // Si ya había un gráfico, destruirlo antes de crear uno nuevo
+      if (chart) chart.destroy();
+
+      chart = new Chart(document.getElementById('grafico'), {
+        type: 'line',
+        data: {
+          labels: xs,
+          datasets: [{
+            label: tipo === 'lineal' ? 'f(x) = ax + b' : 'f(x) = ax² + bx + c',
+            data: ys,
+            fill: false,
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: { title: { display: true, text: 'x' } },
+            y: { title: { display: true, text: 'f(x)' } }
+          }
+        }
+      });
+    }
+
+    // Ejecuta una primera gráfica por defecto
+    resolver();
+  </script>
+</body>
+</html>
+
