@@ -1,238 +1,53 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Solucionador + Bot parlante</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    *{box-sizing:border-box}
-    body{
-      font-family:Arial,Helvetica,sans-serif;
-      margin:0;
-      padding:0;
-      background:#f5f7fa;
-      display:flex;
-      min-height:100vh;
-    }
-    /* Panel principal */
-    .panel{
-      flex:1 1 70%;
-      padding:24px;
-    }
-    h1{margin-top:0;font-size:1.4rem}
-    label{display:block;margin-top:10px}
-    input,select,button{
-      padding:6px 10px;
-      font-size:1rem;
-      margin-top:4px
-    }
-    button{
-      cursor:pointer;
-      border:none;
-      background:#1976D2;
-      color:#fff;
-      border-radius:4px
-    }
-    button:hover{background:#145ca3}
-    #resultados{
-      margin-top:16px;
-      background:#fff;
-      padding:12px;
-      border-radius:6px;
-      box-shadow:0 1px 4px rgba(0,0,0,.1)
-    }
-    canvas{width:100%;max-height:380px;margin-top:20px;background:#fff;border:1px solid #ddd;border-radius:6px}
-
-    /* Chat bot */
-    .chat-container{
-      flex:1 1 30%;
-      border-left:2px solid #e0e0e0;
-      display:flex;
-      flex-direction:column;
-      background:#ffffff;
-    }
-    .chat-header{
-      background:#1976D2;
-      color:#fff;
-      padding:12px;
-      text-align:center;
-      font-weight:bold;
-    }
-    .chat-body{
-      flex:1;
-      padding:12px;
-      overflow-y:auto;
-    }
-    .msg{
-      margin-bottom:12px;
-      line-height:1.4;
-    }
-    .user{
-      text-align:right;
-    }
-    .user span{
-      background:#e8f0fe;
-      padding:8px 12px;
-      border-radius:12px 12px 0 12px;
-      display:inline-block;
-    }
-    .bot span{
-      background:#f1f3f4;
-      padding:8px 12px;
-      border-radius:12px 12px 12px 0;
-      display:inline-block;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Ecuaciones con fracciones + bot parlante</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;display:flex;height:100vh}
+  .panel{flex:1;padding:22px;overflow:auto}
+  h1{font-size:1.2rem;margin-top:0}
+  input,button{font-size:1rem;padding:6px 8px;margin:10px 0;width:100%}
+  button{background:#1976d2;color:#fff;border:none;border-radius:4px;cursor:pointer}
+  button:hover{background:#145ca3}
+  #resultados{background:#fff;border:1px solid #ddd;padding:12px;border-radius:6px}
+  canvas{width:100%;background:#fff;border:1px solid #ddd;border-radius:6px;margin-top:20px}
+  .chat-container{flex:0 0 300px;border-left:2px solid #ddd;background:#fff;display:flex;flex-direction:column}
+  .chat-header{background:#1976d2;color:#fff;text-align:center;padding:10px;font-weight:bold}
+  .chat-body{flex:1;overflow:auto;padding:10px}
+  .msg{margin-bottom:12px;line-height:1.4}
+  .user span{background:#cce5ff;padding:8px 12px;border-radius:10px 10px 0 10px;display:inline-block;float:right}
+  .bot  span{background:#eee;padding:8px 12px;border-radius:10px 10px 10px 0;display:inline-block}
+</style>
 </head>
 <body>
 
-  <!-- Panel principal -->
-  <div class="panel">
-    <h1>Solucionador de ecuaciones con bot parlante</h1>
+<div class="panel">
+  <h1>Ingresa tu ecuación (ahora admite fracciones)</h1>
+  <input type="text" id="ecuacion" value="-3/4x^2 + 5/6x - 7/8">
+  <button onclick="resolver()">Resolver y graficar</button>
 
-    <label>Tipo de ecuación:
-      <select id="tipo">
-        <option value="lineal">Lineal (ax + b = 0)</option>
-        <option value="cuadratica">Cuadrática (ax² + bx + c = 0)</option>
-      </select>
-    </label>
+  <div id="resultados"></div>
+  <canvas id="grafico"></canvas>
+</div>
 
-    <label>a: <input type="number" id="a" value="1" step="any"></label>
-    <label>b: <input type="number" id="b" value="0" step="any"></label>
-    <label id="cLabel" style="display:none;">c: <input type="number" id="c" value="0" step="any"></label>
-
-    <button onclick="resolver()">Resolver y graficar</button>
-
-    <div id="resultados"></div>
-    <canvas id="grafico"></canvas>
-  </div>
-
-  <!-- Chat bot -->
-  <div class="chat-container">
-    <div class="chat-header">🗣️ Bot Matemático</div>
-    <div id="chat" class="chat-body">
-      <!-- Mensajes dinámicos -->
-    </div>
-  </div>
+<div class="chat-container">
+  <div class="chat-header">🤖 Bot Matemático</div>
+  <div id="chat" class="chat-body"></div>
+</div>
 
 <script>
-  const tipoSelect   = document.getElementById('tipo');
-  const cLabel       = document.getElementById('cLabel');
-  const chatBody     = document.getElementById('chat');
-  const speechSynth  = window.speechSynthesis;
-  let chart; // gráfico Chart.js
+let chart;
+const chatBody = document.getElementById('chat');
 
-  // Mostrar/ocultar coeficiente c
-  tipoSelect.addEventListener('change', () => {
-    cLabel.style.display = tipoSelect.value === 'cuadratica' ? 'block' : 'none';
-  });
-
-  // Añade un mensaje al chat
-  function addMessage(sender, text){
-    const div   = document.createElement('div');
-    div.className = `msg ${sender}`;
-    div.innerHTML = `<span>${text}</span>`;
-    chatBody.appendChild(div);
-    chatBody.scrollTop = chatBody.scrollHeight; // auto-scroll
-  }
-
-  // Función para hacer hablar al bot
-  function speak(text){
-    if(!'speechSynthesis' in window) return; // por si no soporta
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = 'es-ES';
-    utter.rate = 1;
-    speechSynth.cancel(); // corta cualquier voz anterior
-    speechSynth.speak(utter);
-  }
-
-  function resolver(){
-    const a = parseFloat(document.getElementById('a').value);
-    const b = parseFloat(document.getElementById('b').value);
-    const tipo = tipoSelect.value;
-    let c = 0;
-
-    // Validación
-    if(a === 0){
-      alert('El coeficiente a no puede ser 0.');
-      return;
-    }
-
-    // Mensaje del usuario al chat
-    addMessage('user', `Resolver ${tipo === 'lineal' ? 'ax + b = 0' : 'ax² + bx + c = 0'} con a=${a}, b=${b}${tipo==='cuadratica'?`, c=${document.getElementById('c').value}`:''}`);
-
-    // Cálculos
-    let soluciones = '', rangoString = '', dominioString = 'Dominio: (-∞, ∞)';
-    if(tipo === 'lineal'){
-      const x = -b / a;
-      soluciones = `Solución única: x = ${x.toFixed(4)}`;
-      rangoString = 'Rango: (-∞, ∞)';
-    }else{
-      c = parseFloat(document.getElementById('c').value);
-      const D = b*b - 4*a*c;
-      if(D > 0){
-        const x1 = (-b + Math.sqrt(D)) / (2*a);
-        const x2 = (-b - Math.sqrt(D)) / (2*a);
-        soluciones = `Dos soluciones reales: x₁ = ${x1.toFixed(4)}, x₂ = ${x2.toFixed(4)}`;
-      }else if(D === 0){
-        const x = -b/(2*a);
-        soluciones = `Una solución real doble: x = ${x.toFixed(4)}`;
-      }else{
-        const real = (-b/(2*a)).toFixed(4);
-        const imag = (Math.sqrt(-D)/(2*a)).toFixed(4);
-        soluciones = `Soluciones complejas: x = ${real} ± ${imag}i`;
-      }
-      const yVertex = -D/(4*a);
-      rangoString = a>0 ? `Rango: [${yVertex.toFixed(4)}, ∞)` : `Rango: (-∞, ${yVertex.toFixed(4)}]`;
-    }
-
-    // Mostrar texto en resultados
-    document.getElementById('resultados').innerHTML = `
-      <strong>${soluciones}</strong><br>
-      ${dominioString}<br>
-      ${rangoString}
-    `;
-
-    // Graficar
-    generarGrafico(a,b,c,tipo);
-
-    // Mensaje del bot
-    const botText = `${soluciones}. ${dominioString}. ${rangoString}.`;
-    addMessage('bot', botText);
-    speak(botText); // lo dice en voz alta
-  }
-
-  function generarGrafico(a,b,c,tipo){
-    const xs=[], ys=[];
-    for(let x=-20;x<=20;x+=0.2){
-      const y = (tipo==='lineal') ? a*x + b : a*x*x + b*x + c;
-      xs.push(x.toFixed(2));
-      ys.push(y);
-    }
-    if(chart) chart.destroy();
-    chart = new Chart(document.getElementById('grafico'),{
-      type:'line',
-      data:{
-        labels:xs,
-        datasets:[{
-          label: tipo==='lineal'?'f(x)=ax+b':'f(x)=ax²+bx+c',
-          data:ys,
-          fill:false,
-          tension:0.15
-        }]
-      },
-      options:{
-        responsive:true,
-        scales:{
-          x:{title:{display:true,text:'x'}},
-          y:{title:{display:true,text:'f(x)'}}
-        }
-      }
-    });
-  }
-
-  // Primera ejecución por defecto
-  resolver();
-</script>
-</body>
-</html>
+function addMsg(sender, text){
+  const div = document.createElement('div');
+  div.className = 'msg '+sender;
+  div.innerHTML = `<span>${text}</span>`;
+  chatBody.appendChild(div);
+  chatBody.scrollTop = chatBody.scrollHeight;
+}
+function speak(text){
+  if(!('speechSynthesis' in window)) return;
+  const u = new SpeechSynthesisUtterance(
