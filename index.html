@@ -1,33 +1,33 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Ecuaciones (fracciones / x÷n) + bot parlante</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-  body{margin:0;font-family:Arial,Helvetica,sans-serif;display:flex;height:100vh}
-  .panel{flex:1;padding:22px;overflow:auto}
-  h1{font-size:1.2rem;margin:0}
-  input,button{font-size:1rem;padding:6px 8px;margin:10px 0;width:100%}
-  button{background:#1976d2;color:#fff;border:none;border-radius:4px;cursor:pointer}
-  button:hover{background:#145ca3}
-  #resultados{background:#fff;border:1px solid #ddd;padding:12px;border-radius:6px}
-  canvas{width:100%;background:#fff;border:1px solid #ddd;border-radius:6px;margin-top:20px}
-  .chat-container{flex:0 0 300px;border-left:2px solid #ddd;background:#fff;display:flex;flex-direction:column}
-  .chat-header{background:#1976d2;color:#fff;text-align:center;padding:10px;font-weight:bold}
-  .chat-body{flex:1;overflow:auto;padding:10px}
-  .msg{margin-bottom:12px;line-height:1.4}
-  .user span{background:#cce5ff;padding:8px 12px;border-radius:10px 10px 0 10px;display:inline-block;float:right}
-  .bot  span{background:#eee;padding:8px 12px;border-radius:10px 10px 10px 0;display:inline-block}
-</style>
+  <meta charset="UTF-8">
+  <title>Dominio, Rango y Asíntotas</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.5.0/math.min.js"></script>
+  <style>
+    body{margin:0;font-family:sans-serif;display:flex;height:100vh}
+    .panel{flex:1;padding:20px}
+    h1{font-size:1.2rem}
+    input,button{width:100%;padding:8px;margin:10px 0;font-size:1rem}
+    button{background:#1976D2;color:#fff;border:none;border-radius:4px;cursor:pointer}
+    button:hover{background:#145ca3}
+    #resultados{background:#fff;padding:10px;border:1px solid #ddd;border-radius:6px}
+    canvas{width:100%;background:#fff;border:1px solid #ddd;border-radius:6px;margin-top:20px}
+    .chat-container{flex:0 0 300px;border-left:2px solid #ddd;background:#fff;display:flex;flex-direction:column}
+    .chat-header{background:#1976D2;color:#fff;text-align:center;padding:10px}
+    .chat-body{flex:1;overflow:auto;padding:10px}
+    .msg{margin-bottom:12px;line-height:1.4}
+    .user span{background:#cce5ff;padding:8px 12px;border-radius:10px 10px 0 10px;display:inline-block;float:right}
+    .bot span{background:#eee;padding:8px 12px;border-radius:10px 10px 10px 0;display:inline-block}
+  </style>
 </head>
 <body>
 
 <div class="panel">
-  <h1>Escribe tu ecuación (hasta grado 2, con fracciones o x/ n)</h1>
-  <input type="text" id="ecuacion" placeholder="Ej.: -x/2 + 3/4x^2 - 5/6">
-  <button onclick="resolver()">Resolver y graficar</button>
-
+  <h1>Escribe una función: ej. (x+1)/(x-2), sqrt(x), x^2 + 3x</h1>
+  <input id="funcion" placeholder="Escribe f(x)">
+  <button onclick="resolver()">Calcular dominio, rango y asíntotas</button>
   <div id="resultados"></div>
   <canvas id="grafico"></canvas>
 </div>
@@ -39,117 +39,132 @@
 
 <script>
 let chart;
-const chatBody = document.getElementById('chat');
+const chat = document.getElementById('chat');
 
-/* --- utilidades de chat & voz --- */
 function addMsg(sender, text){
   const div = document.createElement('div');
   div.className = 'msg ' + sender;
   div.innerHTML = `<span>${text}</span>`;
-  chatBody.appendChild(div);
-  chatBody.scrollTop = chatBody.scrollHeight;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
 }
 function speak(text){
-  if (!('speechSynthesis' in window)) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'es-ES';  speechSynthesis.cancel();  speechSynthesis.speak(u);
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'es-ES';
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utter);
 }
 
-/* --- convierte string “coef” (entero, decimal o fracción) a número --- */
-function fracToDec(str){
-  if (str === '' || str === '+') return 1;
-  if (str === '-') return -1;
-  if (str.includes('/')){
-    const [n,d] = str.split('/').map(Number);
-    return n / d;
+function calcularDominio(f){
+  let dominio = [];
+  for(let x = -100; x <= 100; x += 0.5){
+    try {
+      const y = f.evaluate({x});
+      if (typeof y === 'number' && isFinite(y)) dominio.push(x);
+    } catch(e){}
   }
-  return parseFloat(str);
+  return dominio;
 }
 
-/* --- PRE-PROCESA la ecuación para admitir x/num o x^2/num --- */
-function normalizarXdivNumero(s){
-  /*   +x/3   -x/4     +x^2/5      -x^2/6   */
-  return s.replace(/([+\-])x(\^2)?\/(\d*\.?\d+)/g, (_,sign,pow,den) => {
-    const coef = (+sign + 0) === -1 ? -1/den : 1/den;         // ±1/den
-    return (coef>=0?'+':'') + coef + 'x' + (pow || '');
-  });
+function calcularRango(f, dominio){
+  const valores = dominio.map(x => {
+    try {
+      return f.evaluate({x});
+    } catch { return null; }
+  }).filter(y => typeof y === 'number' && isFinite(y));
+  const min = Math.min(...valores);
+  const max = Math.max(...valores);
+  return [min, max];
 }
 
-/* --- obtiene a, b, c --- */
-function parseEcuacion(raw){
-  let s = raw.toLowerCase().replace(/\s+/g,'');
-  if (!s) return null;
-  if (s[0] !== '+' && s[0] !== '-') s = '+' + s;              // fuerza signo inicial
-  s = normalizarXdivNumero(s);                                 // x/num → coef·x
-  const terminos = s.match(/[+\-][^+\-]+/g) || [];
-
-  let a=0,b=0,c=0;
-  terminos.forEach(t=>{
-    if (t.includes('x^2')){
-      const coef = t.replace('x^2','');
-      a += fracToDec(coef);
-    } else if (t.includes('x')){
-      const coef = t.replace('x','');
-      b += fracToDec(coef);
-    } else {
-      c += fracToDec(t);
+function encontrarAsintotas(f){
+  const asintotas = [];
+  for (let x = -20; x <= 20; x += 0.1){
+    let y1, y2;
+    try { y1 = f.evaluate({x: x - 0.01}); } catch {}
+    try { y2 = f.evaluate({x: x + 0.01}); } catch {}
+    if (y1 !== undefined && y2 !== undefined && Math.abs(y1 - y2) > 50){
+      asintotas.push(Number(x.toFixed(2)));
     }
-  });
-  return {a,b,c};
+  }
+  return [...new Set(asintotas)];
+}
+
+function encontrarAsintotaHorizontal(f){
+  try {
+    const yPlus = f.evaluate({x: 1e6});
+    const yMinus = f.evaluate({x: -1e6});
+    if (Math.abs(yPlus - yMinus) < 1){
+      return yPlus.toFixed(2);
+    }
+  } catch {}
+  return null;
 }
 
 function resolver(){
-  const entrada = document.getElementById('ecuacion').value.trim();
-  addMsg('user', entrada || '(vacío)');
+  const expresion = document.getElementById('funcion').value;
+  addMsg('user', expresion);
 
-  const coef = parseEcuacion(entrada);
-  if (!coef || (coef.a === 0 && coef.b === 0)){
-    alert('La ecuación debe contener x o x².');
+  let f;
+  try {
+    f = math.compile(expresion);
+  } catch (e){
+    alert("Función inválida.");
     return;
   }
-  const {a,b,c} = coef;
 
-  /* --- resolución --- */
-  let sol='', rango='', dominio='Dominio: (-∞, ∞)';
-  if (a === 0){                       // lineal
-    const x = -c / b;
-    sol   = `Solución: x = ${x.toFixed(4)}`;
-    rango = 'Rango: (-∞, ∞)';
-  } else {                            // cuadrática
-    const D = b*b - 4*a*c;
-    if (D > 0){
-      const x1 = (-b + Math.sqrt(D)) / (2*a);
-      const x2 = (-b - Math.sqrt(D)) / (2*a);
-      sol = `Dos soluciones reales: x₁ = ${x1.toFixed(4)}, x₂ = ${x2.toFixed(4)}`;
-    } else if (D === 0){
-      const x = -b / (2*a);
-      sol = `Una solución real doble: x = ${x.toFixed(4)}`;
-    } else {
-      const re = (-b / (2*a)).toFixed(4);
-      const im = (Math.sqrt(-D) / (2*a)).toFixed(4);
-      sol = `Soluciones complejas: x = ${re} ± ${im}i`;
-    }
-    const yv = -D / (4*a);
-    rango = a > 0 ? `Rango: [${yv.toFixed(4)}, ∞)` : `Rango: (-∞, ${yv.toFixed(4)}]`;
-  }
+  // Dominio y rango
+  const dominioArray = calcularDominio(f);
+  const [minY, maxY] = calcularRango(f, dominioArray);
+  const asintotasV = encontrarAsintotas(f);
+  const asintotaH = encontrarAsintotaHorizontal(f);
 
-  document.getElementById('resultados').innerHTML =
-    `<strong>${sol}</strong><br>${dominio}<br>${rango}`;
+  let texto = `<strong>Dominio:</strong> x ∈ [${Math.min(...dominioArray).toFixed(2)}, ${Math.max(...dominioArray).toFixed(2)}]<br>`;
+  texto += `<strong>Rango (aproximado):</strong> y ∈ [${minY.toFixed(2)}, ${maxY.toFixed(2)}]<br>`;
+  texto += `<strong>Asíntotas verticales:</strong> ${asintotasV.length ? asintotasV.join(', ') : 'ninguna'}<br>`;
+  texto += `<strong>Asíntota horizontal:</strong> ${asintotaH !== null ? 'y = ' + asintotaH : 'ninguna'}`;
+  document.getElementById('resultados').innerHTML = texto;
 
-  const botText = `${sol}. ${dominio}. ${rango}.`;
-  addMsg('bot', botText);  speak(botText);
+  const botMsg = `Dominio de x: desde ${Math.min(...dominioArray).toFixed(2)} hasta ${Math.max(...dominioArray).toFixed(2)}.
+Rango de y: de ${minY.toFixed(2)} a ${maxY.toFixed(2)}.
+Asíntotas verticales en: ${asintotasV.length ? asintotasV.join(', ') : 'ninguna'}.
+Asíntota horizontal: ${asintotaH !== null ? 'y = ' + asintotaH : 'ninguna'}.`;
 
-  /* --- gráfico --- */
+  addMsg('bot', botMsg);
+  speak(botMsg);
+
+  // Gráfica
   const xs = [], ys = [];
   for (let x = -20; x <= 20; x += 0.2){
-    ys.push(a*x*x + b*x + c);
-    xs.push(x.toFixed(2));
+    try {
+      const y = f.evaluate({x});
+      xs.push(x.toFixed(2));
+      ys.push(y);
+    } catch {
+      xs.push(x.toFixed(2));
+      ys.push(null);
+    }
   }
+
   if (chart) chart.destroy();
-  chart = new Chart(document.getElementById('grafico'),{
-    type:'line',
-    data:{labels:xs,datasets:[{label:'f(x)',data:ys,fill:false,tension:0.12,borderWidth:2}]},
-    options:{scales:{x:{title:{display:true,text:'x'}},y:{title:{display:true,text:'f(x)'}}}}
+  chart = new Chart(document.getElementById('grafico'), {
+    type: 'line',
+    data: {
+      labels: xs,
+      datasets: [{
+        label: `f(x) = ${expresion}`,
+        data: ys,
+        fill: false,
+        borderWidth: 2,
+        spanGaps: false
+      }]
+    },
+    options: {
+      scales: {
+        x: { title: { display: true, text: 'x' }},
+        y: { title: { display: true, text: 'f(x)' }}
+      }
+    }
   });
 }
 </script>
