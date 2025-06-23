@@ -219,11 +219,19 @@ function resolver(){
       }]
     },
     options: {
-      scales: {
-        x: { title: { display: true, text: 'x' }},
-        y: { title: { display: true, text: 'f(x)' }}
-      }
+  scales: {
+    x: {
+      title: { display: true, text: 'x' },
+      min: -20,
+      max: 20
+    },
+    y: {
+      title: { display: true, text: 'f(x)' },
+      min: -20,
+      max: 20
     }
+  }
+}
   });
 }
 </script>
