@@ -1,210 +1,87 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Dominio, Rango y Asíntotas en [-20, 20]</title>
+  <meta charset="UTF-8" />
+  <title>Graficador completo</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.5.0/math.min.js"></script>
   <style>
-    body {margin:0;font-family:sans-serif;display:flex;height:100vh}
-    .panel {
-      flex:1;
-      padding:20px;
-      background:#f5f5f5;
-    }
-    h1 {
-      font-size:1.3rem;
-      margin-bottom:10px;
-    }
-    input, button {
-      width:100%;
-      font-size:1rem;
-      padding:8px;
-      margin-bottom:12px;
-    }
-    button {
-      background:#1976d2;
-      color:#fff;
-      border:none;
-      border-radius:4px;
-      cursor:pointer;
-    }
-    button:hover {
-      background:#145ca3;
-    }
-    #resultados {
-      background:#fff;
-      padding:12px;
-      border-radius:6px;
-      border:1px solid #ddd;
-      margin-bottom:20px;
-    }
-    canvas {
-      width:100%;
-      height:300px;
-      background:#fff;
-      border:1px solid #ccc;
-      border-radius:6px;
-    }
-    .chat-container {
-      flex:0 0 300px;
-      background:#fff;
-      border-left:2px solid #ddd;
-      display:flex;
-      flex-direction:column;
-    }
-    .chat-header {
-      background:#1976d2;
-      color:#fff;
-      text-align:center;
-      padding:10px;
-      font-weight:bold;
-    }
-    .chat-body {
-      flex:1;
-      overflow:auto;
-      padding:10px;
-    }
-    .msg {
-      margin-bottom:12px;
-      line-height:1.4;
-    }
-    .user span {
-      background:#cce5ff;
-      padding:8px 12px;
-      border-radius:10px 10px 0 10px;
-      display:inline-block;
-      float:right;
-    }
-    .bot span {
-      background:#eee;
-      padding:8px 12px;
-      border-radius:10px 10px 10px 0;
-      display:inline-block;
-    }
+    body {margin: 0; font-family: sans-serif; display: flex; height: 100vh;}
+    .panel {flex: 1; padding: 20px; background: #f5f5f5; overflow-y: auto;}
+    h1 {font-size: 1.3rem;}
+    input, button {width: 100%; font-size: 1rem; padding: 8px; margin-bottom: 12px;}
+    button.export {background: #43a047;}
+    button {background: #1976d2; color: #fff; border: none; border-radius: 4px; cursor: pointer;}
+    button:hover {background: #145ca3;}
+    #resultados {background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #ddd; margin-bottom: 20px;}
+    canvas {width: 100%; height: 300px; background: #fff; border: 1px solid #ccc; border-radius: 6px; margin-bottom: 10px;}
+    table {width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff;}
+    th, td {border: 1px solid #ccc; padding: 6px; text-align: center;}
+    th {background: #1976d2; color: #fff;}
   </style>
 </head>
 <body>
 
 <div class="panel">
-  <h1>✏️ Ingresa f(x) (solo se analizará entre -20 y 20)</h1>
+  <h1>✏️ Ingresa f(x) (dominio: de -20 a 20)</h1>
   <input id="funcion" placeholder="Ej: x^2 - 4, 1/(x-2), sqrt(x)">
   <button onclick="resolver()">Resolver y graficar</button>
+  <button class="export" onclick="guardarImagen()">📷 Guardar gráfica como imagen</button>
   <div id="resultados"></div>
   <canvas id="grafico"></canvas>
-</div>
-
-<div class="chat-container">
-  <div class="chat-header">🤖 Bot Matemático</div>
-  <div id="chat" class="chat-body"></div>
+  <div id="tabla-valores"></div>
 </div>
 
 <script>
 let chart;
-const chat = document.getElementById('chat');
-
-function addMsg(sender, text){
-  const div = document.createElement('div');
-  div.className = 'msg ' + sender;
-  div.innerHTML = `<span>${text}</span>`;
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
-}
-
-function speak(text){
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = 'es-ES';
-  speechSynthesis.cancel();
-  speechSynthesis.speak(utter);
-}
-
-// Intervalo de análisis
-const X_MIN = -20;
-const X_MAX = 20;
 
 function resolver(){
   const expr = document.getElementById('funcion').value.trim();
   if (!expr) {
-    alert("Escribe una función válida.");
+    alert("Escribe una función.");
     return;
   }
 
-  addMsg('user', expr);
   let f;
   try {
     f = math.compile(expr);
   } catch {
-    alert("La función no se pudo interpretar.");
+    alert("Función inválida.");
     return;
   }
 
-  // Calcular dominio y rango aproximado
-  const dominio = [];
-  const valores = [];
-  for (let x = X_MIN; x <= X_MAX; x += 0.2) {
+  const xs = [], ys = [], tabla = [];
+  for (let x = -20; x <= 20; x += 0.5) {
+    let y;
     try {
-      const y = f.evaluate({ x });
-      if (typeof y === 'number' && isFinite(y)) {
-        dominio.push(x);
-        valores.push(y);
-      }
-    } catch {}
+      y = f.evaluate({x});
+      if (!isFinite(y) || Math.abs(y) > 100) y = null;
+    } catch {
+      y = null;
+    }
+    xs.push(+x.toFixed(2));
+    ys.push(y);
+    tabla.push({x: +x.toFixed(2), y: y !== null ? +y.toFixed(4) : '---'});
   }
 
-  const rangoMin = Math.min(...valores);
-  const rangoMax = Math.max(...valores);
+  // Mostrar tabla
+  let html = '<table><thead><tr><th>x</th><th>f(x)</th></tr></thead><tbody>';
+  tabla.forEach(p => {
+    html += `<tr><td>${p.x}</td><td>${p.y}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('tabla-valores').innerHTML = html;
 
-  // Buscar asíntotas verticales en [-20, 20]
-  const asintotasV = [];
-  for (let x = X_MIN; x <= X_MAX; x += 0.1) {
-    let y1, y2;
-    try { y1 = f.evaluate({ x: x - 0.01 }); } catch {}
-    try { y2 = f.evaluate({ x: x + 0.01 }); } catch {}
-    if (y1 !== undefined && y2 !== undefined && Math.abs(y1 - y2) > 50) {
-      asintotasV.push(Number(x.toFixed(2)));
-    }
-  }
-
-  // Asíntota horizontal
-  let asintotaH = null;
-  try {
-    const yInf = f.evaluate({ x: 1e6 });
-    const yNegInf = f.evaluate({ x: -1e6 });
-    if (Math.abs(yInf - yNegInf) < 1) {
-      asintotaH = yInf.toFixed(2);
-    }
-  } catch {}
-
-  // Mostrar resultados
-  const resHTML = `
-    <strong>📌 Dominio (en [-20, 20]):</strong><br>
-    ${dominio.length ? `De x = ${X_MIN} hasta x = ${X_MAX} (con huecos en asíntotas)` : 'No definido'}<br>
-    <strong>📌 Rango aprox.:</strong> y ∈ [${rangoMin.toFixed(2)}, ${rangoMax.toFixed(2)}]<br>
-    <strong>📌 Asíntotas verticales (en [-20, 20]):</strong> ${asintotasV.length ? asintotasV.join(', ') : 'ninguna'}<br>
-    <strong>📌 Asíntota horizontal:</strong> ${asintotaH !== null ? 'y = ' + asintotaH : 'ninguna'}
-  `;
-  document.getElementById('resultados').innerHTML = resHTML;
-
-  // Bot habla
-  const botText = `Dominio entre menos 20 y 20. Rango entre ${rangoMin.toFixed(2)} y ${rangoMax.toFixed(2)}. ` +
-                  `Asíntotas verticales: ${asintotasV.length ? asintotasV.join(', ') : 'ninguna'}. ` +
-                  `Asíntota horizontal: ${asintotaH ? 'y = ' + asintotaH : 'ninguna'}.`;
-  addMsg('bot', botText);
-  speak(botText);
+  // Mostrar resumen
+  const valoresValidos = ys.filter(y => y !== null);
+  const minY = Math.min(...valoresValidos);
+  const maxY = Math.max(...valoresValidos);
+  document.getElementById('resultados').innerHTML =
+    `<strong>Dominio evaluado:</strong> de -20 a 20<br>
+     <strong>Rango visible:</strong> y ∈ [${minY.toFixed(2)}, ${maxY.toFixed(2)}]`;
 
   // Graficar
-  const xs = [], ys = [];
-  for (let x = X_MIN; x <= X_MAX; x += 0.2) {
-    try {
-      const y = f.evaluate({ x });
-      xs.push(x.toFixed(2));
-      ys.push(y);
-    } catch {
-      xs.push(x.toFixed(2));
-      ys.push(null);
-    }
-  }
-
   if (chart) chart.destroy();
   chart = new Chart(document.getElementById('grafico'), {
     type: 'line',
@@ -213,26 +90,48 @@ function resolver(){
       datasets: [{
         label: `f(x) = ${expr}`,
         data: ys,
-        fill: false,
+        borderColor: '#1976d2',
         borderWidth: 2,
+        fill: false,
         spanGaps: false
       }]
     },
     options: {
-  scales: {
-    x: {
-      title: { display: true, text: 'x' },
-      min: -20,
-      max: 20
-    },
-    y: {
-      title: { display: true, text: 'f(x)' },
-      min: -20,
-      max: 20
+      responsive: true,
+      scales: {
+        x: {
+          title: {display: true, text: 'x'},
+          min: -20,
+          max: 20
+        },
+        y: {
+          title: {display: true, text: 'f(x)'},
+          min: -20,
+          max: 20
+        }
+      },
+      plugins: {
+        zoom: {
+          zoom: {
+            wheel: {enabled: true},
+            pinch: {enabled: true},
+            mode: 'xy'
+          },
+          pan: {
+            enabled: true,
+            mode: 'xy'
+          }
+        }
+      }
     }
-  }
-}
   });
+}
+
+function guardarImagen() {
+  const link = document.createElement('a');
+  link.download = 'grafica.png';
+  link.href = document.getElementById('grafico').toDataURL('image/png');
+  link.click();
 }
 </script>
 </body>
